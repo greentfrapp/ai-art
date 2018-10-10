@@ -5,6 +5,8 @@ An agent trained using vanilla Actor Critic
 import tensorflow as tf
 import numpy as np
 
+from paint_env import PaintEnv
+
 class ActorCriticAgent():
 	
 	def __init__(self, name):
