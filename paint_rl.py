@@ -21,6 +21,7 @@ import os
 import sys
 from absl import flags
 from absl.flags import FLAGS
+from keras.applications.resnet50 import ResNet50
 
 from paint_env import PaintEnv
 
@@ -67,7 +68,7 @@ class AC_Network():
 		with tf.variable_scope(scope):
 
 			self.inputs = tf.placeholder(
-				shape=[None, 224, 224, 3],
+				shape=[None, 100, 100, 3],
 				dtype=tf.float32,
 				name='inputs',
 			)
@@ -121,6 +122,13 @@ class AC_Network():
 				kernel_initializer=normalized_columns_initializer(0.01),
 			)
 
+			self.policy_color = tf.layers.dense(
+				inputs=self.latent_vector,
+				units=4,
+				activation=tf.nn.softmax,
+				kernel_initializer=normalized_columns_initializer(0.01),
+			)
+
 			self.value = tf.layers.dense(
 				inputs=self.latent_vector,
 				units=1,
@@ -136,6 +144,8 @@ class AC_Network():
 				self.actions_onehot_end_x = tf.one_hot(self.actions_end_x, 50, dtype=tf.float32)
 				self.actions_end_y = tf.placeholder(shape=[None], dtype=tf.int32)
 				self.actions_onehot_end_y = tf.one_hot(self.actions_end_y, 50, dtype=tf.float32)
+				self.actions_color = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_color = tf.one_hot(self.actions_color, 4, dtype=tf.float32)
 
 				self.target_v = tf.placeholder(shape=[None],dtype=tf.float32)
 				self.advantages = tf.placeholder(shape=[None],dtype=tf.float32)
@@ -144,6 +154,7 @@ class AC_Network():
 				self.responsible_outputs_start_y = tf.reduce_sum(self.policy_start_y * self.actions_onehot_start_y, [1])
 				self.responsible_outputs_end_x = tf.reduce_sum(self.policy_end_x * self.actions_onehot_end_x, [1])
 				self.responsible_outputs_end_y = tf.reduce_sum(self.policy_end_y * self.actions_onehot_end_y, [1])
+				self.responsible_outputs_color = tf.reduce_sum(self.policy_color * self.actions_onehot_color, [1])
 
 				# Loss functions
 				self.value_loss = 0.5 * tf.reduce_sum(tf.square(self.target_v - tf.reshape(self.value,[-1])))
@@ -152,11 +163,13 @@ class AC_Network():
 				self.entropy += - tf.reduce_sum(self.policy_start_y * tf.log(tf.clip_by_value(self.policy_start_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
 				self.entropy += - tf.reduce_sum(self.policy_end_x * tf.log(tf.clip_by_value(self.policy_end_x, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
 				self.entropy += - tf.reduce_sum(self.policy_end_y * tf.log(tf.clip_by_value(self.policy_end_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy += - tf.reduce_sum(self.policy_color * tf.log(tf.clip_by_value(self.policy_color, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
 
 				self.policy_loss = - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_start_x, 1e-20, 1.0)) * self.advantages)
 				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_start_y, 1e-20, 1.0)) * self.advantages)
 				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_end_x, 1e-20, 1.0)) * self.advantages)
 				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_end_y, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_color, 1e-20, 1.0)) * self.advantages)
 
 				self.loss = 0.5 * self.value_loss + self.policy_loss - self.entropy * 0.01
 
@@ -191,7 +204,8 @@ class Worker():
 		self.update_local_ops = update_target_graph('global',self.name)
 		
 		print('Initializing environment #{}...'.format(self.number))
-		self.env = PaintEnv('env')
+		global _resnet
+		self.env = PaintEnv('env_{}'.format(name), _resnet)
 		
 	def train(self,rollout,sess,gamma,bootstrap_value):
 		rollout = np.array(rollout)
@@ -200,9 +214,10 @@ class Worker():
 		actions_start_y = rollout[:,2]
 		actions_end_x = rollout[:,3]
 		actions_end_y = rollout[:,4]
-		rewards = rollout[:,5]
-		next_obs = rollout[:,6]
-		values = rollout[:,8]
+		actions_color = rollout[:,5]
+		rewards = rollout[:,6]
+		next_obs = rollout[:,7]
+		values = rollout[:,9]
 		
 		# Here we take the rewards and values from the rollout, and use them to calculate the advantage and discounted returns
 		# The advantage function uses generalized advantage estimation from [2]
@@ -215,11 +230,12 @@ class Worker():
 		# Update the global network using gradients from loss
 		# Generate network statistics to periodically save
 		feed_dict = {self.local_AC.target_v:discounted_rewards,
-			self.local_AC.inputs:np.stack(obs).reshape(-1,224,224,3),
+			self.local_AC.inputs:np.stack(obs).reshape(-1,100,100,3),
 			self.local_AC.actions_start_x:actions_start_x,
 			self.local_AC.actions_start_y:actions_start_y,
 			self.local_AC.actions_end_x:actions_end_x,
 			self.local_AC.actions_end_y:actions_end_y,
+			self.local_AC.actions_color:actions_color,
 			self.local_AC.advantages:advantages}
 		
 		v_l,p_l,e_l,g_n,v_n, _ = sess.run([self.local_AC.value_loss,
@@ -235,11 +251,11 @@ class Worker():
 		episode_count = sess.run(self.global_episodes)
 		total_steps = 0
 		print ("Starting worker " + str(self.number))
-		with sess.as_default(), sess.graph.as_default():				 
+		with sess.as_default(), sess.graph.as_default():
 			while not coord.should_stop():
 				# Download copy of parameters from global network
 				sess.run(self.update_local_ops)
-
+				
 				episode_buffer = []
 				episode_values = []
 				episode_reward = 0
@@ -253,22 +269,32 @@ class Worker():
 				while not episode_end:
 
 					# Take an action using distributions from policy networks' outputs
-					start_x_dist, start_y_dist, end_x_dist, end_y_dist, v = sess.run([self.local_AC.policy_start_x, self.local_AC.policy_start_y, self.local_AC.policy_end_x, self.local_AC.policy_end_y, self.local_AC.value],
+					start_x_dist, start_y_dist, end_x_dist, end_y_dist, color_dist, v = sess.run([self.local_AC.policy_start_x, self.local_AC.policy_start_y, self.local_AC.policy_end_x, self.local_AC.policy_end_y, self.local_AC.policy_color, self.local_AC.value],
 						feed_dict={self.local_AC.inputs: obs_stack})
 
 					start_x = sample_dist(start_x_dist)
 					start_y = sample_dist(start_y_dist)
 					end_x = sample_dist(end_x_dist)
 					end_y = sample_dist(end_y_dist)
+					color = sample_dist(color_dist)
+
+					if color == 0:
+						rgb = (0, 0, 0)
+					elif color == 1:
+						rgb = (100, 100, 100)
+					elif color == 2:
+						rgb = (255, 255, 255)
+					elif color == 3:
+						rgb = (205, 97, 51)
 
 					a = {
-						'color': (255, 128, 50),
-						'radius': 20,
-						'start': [int(start_x * 224 / 50), int(start_y * 224 / 50)],
-						'end': [int(end_x * 224 / 50), int(end_y * 224 / 50)],
+						'color': rgb,
+						'radius': 5,
+						'start': [int(start_x * 100 / 50), int(start_y * 100 / 50)],
+						'end': [int(end_x * 100 / 50), int(end_y * 100 / 50)],
 					}
 					
-					obs_stack, r, episode_end = self.env.step(actions=a)
+					obs_stack, r, episode_end = self.env.step(action=a)
 
 					if not episode_end:
 						s1_obs = obs_stack
@@ -276,7 +302,7 @@ class Worker():
 						s1_obs = s_obs
 					
 					# Append latest state to buffer
-					episode_buffer.append([s_obs, start_x, start_y, end_x, end_y, r, s1_obs, episode_end, v[0,0]])
+					episode_buffer.append([s_obs, start_x, start_y, end_x, end_y, color, r, s1_obs, episode_end, v[0,0]])
 					episode_values.append(v[0,0])
 
 					episode_reward += r
@@ -353,12 +379,13 @@ def main():
 		master_network = AC_Network('global',None) # Generate global network
 		#num_workers = multiprocessing.cpu_count() # Set workers to number of available CPU threads
 		num_workers = psutil.cpu_count() # Set workers to number of available CPU threads
-		num_workers = 1
-		global _max_score, _running_avg_score, _steps, _episodes
+		num_workers = 4
+		global _max_score, _running_avg_score, _steps, _episodes, _resnet
 		_max_score = 0
 		_running_avg_score = 0
 		_steps = np.zeros(num_workers)
 		_episodes = np.zeros(num_workers)
+		_resnet = ResNet50(weights='imagenet')
 		workers = []
 		# Create worker classes
 		for i in range(num_workers):

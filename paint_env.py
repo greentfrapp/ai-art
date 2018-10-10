@@ -9,14 +9,15 @@ import classes
 
 class PaintEnv():
 
-	def __init__(self, name):
+	def __init__(self, name, classifier):
 		self.name = name
+		self.classifier = classifier
 		self.steps = 0
-		self.max_steps = 10
+		self.max_steps = 20
 		self.end = False
 		self.filename = '{}.jpg'.format(self.name)
-		self.screen = pygame.display.set_mode((224, 224))
-		pygame.draw.circle(self.screen, (255, 255, 255), (112, 112), 200)
+		self.screen = pygame.display.set_mode((100, 100))
+		# pygame.draw.circle(self.screen, (255, 255, 255), (50, 50), 200)
 
 	def step(self, action):
 		if not self.end:
@@ -28,36 +29,34 @@ class PaintEnv():
 				end=action['end'],
 			)
 			pygame.image.save(self.screen, self.filename)
-			classifier = ResNet50(weights='imagenet')
 			sample = preprocess(self.filename)
-			predictions = classifier.predict(sample)
+			predictions = self.classifier.predict(sample)
 			# predicted_label = np.argmax(predictions)
 			# confidence = np.max(predictions)
 			# print(classes.class_ids[predicted_label])
 			# print(confidence)
-			reward = predictions[150]
+			reward = predictions[0, 150]
 			canvas = np.array(Image.open(self.filename))
 			self.steps += 1
 			if self.steps > self.max_steps:
 				self.end = True
-			return canvas, reward, self.end
+			return np.expand_dims(canvas, axis=0), np.log(reward)/100, self.end
 		else:
 			return None
 
 	def reset(self):
 		self.steps = 0
 		self.end = False
-		self.screen = pygame.display.set_mode((224, 224))
-		pygame.draw.circle(self.screen, (255, 255, 255), (112, 112), 200)
+		# self.screen = pygame.display.set_mode((100, 100))
+		pygame.draw.circle(self.screen, (255, 255, 255), (50, 50), 200)
 		pygame.image.save(self.screen, self.filename)
-		classifier = ResNet50(weights='imagenet')
 		sample = preprocess(self.filename)
-		predictions = classifier.predict(sample)
+		predictions = self.classifier.predict(sample)
 		# predicted_label = np.argmax(predictions)
 		# confidence = np.max(predictions)
-		reward = predictions[150]
+		reward = predictions[0, 150]
 		canvas = np.array(Image.open(self.filename))
-		return canvas, reward, self.end
+		return np.expand_dims(canvas, axis=0), np.log(reward)/100, self.end
 
 def preprocess(sample_path):
 	img = image.load_img(sample_path, target_size=(224, 224))
