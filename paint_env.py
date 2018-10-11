@@ -121,19 +121,19 @@ def manual():
 
 
 def main():
-	env = PaintEnv('test')
-	env.step({
-		'color': (255, 128, 50),
-		'radius': 20,
-		'start': [400, 300],
-		'end': [300, 200],
-		})
-	quit()
+	# env = PaintEnv('test')
+	# env.step({
+	# 	'color': (255, 128, 50),
+	# 	'radius': 20,
+	# 	'start': [400, 300],
+	# 	'end': [300, 200],
+	# 	})
+	# quit()
 	screen = pygame.display.set_mode((800,800))
 	pygame.draw.circle(screen, (255, 255, 255), (400, 400), 600)
 	draw(
 		screen=screen, 
-		color=(255, 128, 0),
+		color=(255, 0, 0),
 		radius=20,
 		start=[400, 300],
 		end=[300, 200]

@@ -11,7 +11,7 @@ from absl import flags
 from absl.flags import FLAGS
 from keras.applications.resnet50 import ResNet50
 
-from paint_env import PaintEnv
+from paint_env import SvgEnv
 
 """
 Use the following command to launch Tensorboard:
@@ -85,25 +85,37 @@ class AC_Network():
 				units=256,
 				activation=tf.nn.relu)
 
-			self.policy_start_x = tf.layers.dense(
+			self.policy_i_x = tf.layers.dense(
 				inputs=self.latent_vector,
 				units=50,
 				activation=tf.nn.softmax,
 				kernel_initializer=normalized_columns_initializer(0.01),
 			)
-			self.policy_start_y = tf.layers.dense(
+			self.policy_i_y = tf.layers.dense(
 				inputs=self.latent_vector,
 				units=50,
 				activation=tf.nn.softmax,
 				kernel_initializer=normalized_columns_initializer(0.01),
 			)
-			self.policy_end_x = tf.layers.dense(
+			self.policy_ii_x = tf.layers.dense(
 				inputs=self.latent_vector,
 				units=50,
 				activation=tf.nn.softmax,
 				kernel_initializer=normalized_columns_initializer(0.01),
 			)
-			self.policy_end_y = tf.layers.dense(
+			self.policy_ii_y = tf.layers.dense(
+				inputs=self.latent_vector,
+				units=50,
+				activation=tf.nn.softmax,
+				kernel_initializer=normalized_columns_initializer(0.01),
+			)
+			self.policy_iii_x = tf.layers.dense(
+				inputs=self.latent_vector,
+				units=50,
+				activation=tf.nn.softmax,
+				kernel_initializer=normalized_columns_initializer(0.01),
+			)
+			self.policy_iii_y = tf.layers.dense(
 				inputs=self.latent_vector,
 				units=50,
 				activation=tf.nn.softmax,
@@ -124,39 +136,49 @@ class AC_Network():
 
 			# Only the worker network need ops for loss functions and gradient updating.
 			if scope != 'global':
-				self.actions_start_x = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_start_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
-				self.actions_start_y = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_start_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
-				self.actions_end_x = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_end_x = tf.one_hot(self.actions_end_x, 50, dtype=tf.float32)
-				self.actions_end_y = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_end_y = tf.one_hot(self.actions_end_y, 50, dtype=tf.float32)
+				self.actions_i_x = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_i_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
+				self.actions_i_y = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_i_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
+				self.actions_ii_x = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_ii_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
+				self.actions_ii_y = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_ii_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
+				self.actions_iii_x = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_iii_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
+				self.actions_iii_y = tf.placeholder(shape=[None], dtype=tf.int32)
+				self.actions_onehot_iii_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
 				self.actions_color = tf.placeholder(shape=[None], dtype=tf.int32)
 				self.actions_onehot_color = tf.one_hot(self.actions_color, 4, dtype=tf.float32)
 
 				self.target_v = tf.placeholder(shape=[None],dtype=tf.float32)
 				self.advantages = tf.placeholder(shape=[None],dtype=tf.float32)
 
-				self.responsible_outputs_start_x = tf.reduce_sum(self.policy_start_x * self.actions_onehot_start_x, [1])
-				self.responsible_outputs_start_y = tf.reduce_sum(self.policy_start_y * self.actions_onehot_start_y, [1])
-				self.responsible_outputs_end_x = tf.reduce_sum(self.policy_end_x * self.actions_onehot_end_x, [1])
-				self.responsible_outputs_end_y = tf.reduce_sum(self.policy_end_y * self.actions_onehot_end_y, [1])
+				self.responsible_outputs_i_x = tf.reduce_sum(self.policy_i_x * self.actions_onehot_i_x, [1])
+				self.responsible_outputs_i_y = tf.reduce_sum(self.policy_i_y * self.actions_onehot_i_y, [1])
+				self.responsible_outputs_ii_x = tf.reduce_sum(self.policy_ii_x * self.actions_onehot_ii_x, [1])
+				self.responsible_outputs_ii_y = tf.reduce_sum(self.policy_ii_y * self.actions_onehot_ii_y, [1])
+				self.responsible_outputs_iii_x = tf.reduce_sum(self.policy_iii_x * self.actions_onehot_iii_x, [1])
+				self.responsible_outputs_iii_y = tf.reduce_sum(self.policy_iii_y * self.actions_onehot_iii_y, [1])
 				self.responsible_outputs_color = tf.reduce_sum(self.policy_color * self.actions_onehot_color, [1])
 
 				# Loss functions
 				self.value_loss = 0.5 * tf.reduce_sum(tf.square(self.target_v - tf.reshape(self.value,[-1])))
 
-				self.entropy = - tf.reduce_sum(self.policy_start_x * tf.log(tf.clip_by_value(self.policy_start_x, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
-				self.entropy += - tf.reduce_sum(self.policy_start_y * tf.log(tf.clip_by_value(self.policy_start_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
-				self.entropy += - tf.reduce_sum(self.policy_end_x * tf.log(tf.clip_by_value(self.policy_end_x, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
-				self.entropy += - tf.reduce_sum(self.policy_end_y * tf.log(tf.clip_by_value(self.policy_end_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy = - tf.reduce_sum(self.policy_i_x * tf.log(tf.clip_by_value(self.policy_i_x, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy += - tf.reduce_sum(self.policy_i_y * tf.log(tf.clip_by_value(self.policy_i_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy += - tf.reduce_sum(self.policy_ii_x * tf.log(tf.clip_by_value(self.policy_ii_x, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy += - tf.reduce_sum(self.policy_ii_y * tf.log(tf.clip_by_value(self.policy_ii_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy += - tf.reduce_sum(self.policy_iii_x * tf.log(tf.clip_by_value(self.policy_iii_x, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
+				self.entropy += - tf.reduce_sum(self.policy_iii_y * tf.log(tf.clip_by_value(self.policy_iii_y, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
 				self.entropy += - tf.reduce_sum(self.policy_color * tf.log(tf.clip_by_value(self.policy_color, 1e-20, 1.0))) # avoid NaN with clipping when value in policy becomes zero
 
-				self.policy_loss = - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_start_x, 1e-20, 1.0)) * self.advantages)
-				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_start_y, 1e-20, 1.0)) * self.advantages)
-				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_end_x, 1e-20, 1.0)) * self.advantages)
-				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_end_y, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss = - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_i_x, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_i_y, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_ii_x, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_ii_y, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_iii_x, 1e-20, 1.0)) * self.advantages)
+				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_iii_y, 1e-20, 1.0)) * self.advantages)
 				self.policy_loss += - tf.reduce_sum(tf.log(tf.clip_by_value(self.responsible_outputs_color, 1e-20, 1.0)) * self.advantages)
 
 				self.loss = 0.5 * self.value_loss + self.policy_loss - self.entropy * 0.01
@@ -193,19 +215,21 @@ class Worker():
 		
 		print('Initializing environment #{}...'.format(self.number))
 		global _resnet
-		self.env = PaintEnv('env_{}'.format(name), _resnet)
+		self.env = SvgEnv('env_{}'.format(name), _resnet)
 		
 	def train(self,rollout,sess,gamma,bootstrap_value):
 		rollout = np.array(rollout)
 		obs = rollout[:,0]
-		actions_start_x = rollout[:,1]
-		actions_start_y = rollout[:,2]
-		actions_end_x = rollout[:,3]
-		actions_end_y = rollout[:,4]
-		actions_color = rollout[:,5]
-		rewards = rollout[:,6]
-		next_obs = rollout[:,7]
-		values = rollout[:,9]
+		actions_i_x = rollout[:,1]
+		actions_i_y = rollout[:,2]
+		actions_ii_x = rollout[:,3]
+		actions_ii_y = rollout[:,4]
+		actions_iii_x = rollout[:,5]
+		actions_iii_y = rollout[:,6]
+		actions_color = rollout[:,7]
+		rewards = rollout[:,8]
+		next_obs = rollout[:,9]
+		values = rollout[:,11]
 		
 		# Here we take the rewards and values from the rollout, and use them to calculate the advantage and discounted returns
 		# The advantage function uses generalized advantage estimation from [2]
@@ -219,10 +243,12 @@ class Worker():
 		# Generate network statistics to periodically save
 		feed_dict = {self.local_AC.target_v:discounted_rewards,
 			self.local_AC.inputs:np.stack(obs).reshape(-1,100,100,3),
-			self.local_AC.actions_start_x:actions_start_x,
-			self.local_AC.actions_start_y:actions_start_y,
-			self.local_AC.actions_end_x:actions_end_x,
-			self.local_AC.actions_end_y:actions_end_y,
+			self.local_AC.actions_i_x:actions_i_x,
+			self.local_AC.actions_i_y:actions_i_y,
+			self.local_AC.actions_ii_x:actions_ii_x,
+			self.local_AC.actions_ii_y:actions_ii_y,
+			self.local_AC.actions_iii_x:actions_iii_x,
+			self.local_AC.actions_iii_y:actions_iii_y,
 			self.local_AC.actions_color:actions_color,
 			self.local_AC.advantages:advantages}
 		
@@ -257,29 +283,43 @@ class Worker():
 				while not episode_end:
 
 					# Take an action using distributions from policy networks' outputs
-					start_x_dist, start_y_dist, end_x_dist, end_y_dist, color_dist, v = sess.run([self.local_AC.policy_start_x, self.local_AC.policy_start_y, self.local_AC.policy_end_x, self.local_AC.policy_end_y, self.local_AC.policy_color, self.local_AC.value],
+					i_x_dist, i_y_dist, ii_x_dist, ii_y_dist, iii_x_dist, iii_y_dist, color_dist, v = sess.run(
+						[
+							self.local_AC.policy_i_x,
+							self.local_AC.policy_i_y,
+							self.local_AC.policy_ii_x,
+							self.local_AC.policy_ii_y,
+							self.local_AC.policy_iii_x,
+							self.local_AC.policy_iii_y,
+							self.local_AC.policy_color,
+							self.local_AC.value,
+						],
 						feed_dict={self.local_AC.inputs: obs_stack})
 
-					start_x = sample_dist(start_x_dist)
-					start_y = sample_dist(start_y_dist)
-					end_x = sample_dist(end_x_dist)
-					end_y = sample_dist(end_y_dist)
+					i_x = sample_dist(i_x_dist)
+					i_y = sample_dist(i_y_dist)
+					ii_x = sample_dist(ii_x_dist)
+					ii_y = sample_dist(ii_y_dist)
+					iii_x = sample_dist(iii_x_dist)
+					iii_y = sample_dist(iii_y_dist)
 					color = sample_dist(color_dist)
 
 					if color == 0:
-						rgb = (0, 0, 0)
+						rgb = '#D9D4D1'
 					elif color == 1:
-						rgb = (100, 100, 100)
+						rgb = '#000000'
 					elif color == 2:
-						rgb = (255, 255, 255)
+						rgb = '#7E7265'
 					elif color == 3:
-						rgb = (205, 97, 51)
+						rgb = '#7C7A99'
 
 					a = {
 						'color': rgb,
-						'radius': 5,
-						'start': [int(start_x * 100 / 50), int(start_y * 100 / 50)],
-						'end': [int(end_x * 100 / 50), int(end_y * 100 / 50)],
+						'vertices': [
+							[i_x, i_y],
+							[ii_x, ii_y],
+							[iii_x, iii_y],
+						],
 					}
 					
 					obs_stack, r, episode_end = self.env.step(action=a)
@@ -290,7 +330,7 @@ class Worker():
 						s1_obs = s_obs
 					
 					# Append latest state to buffer
-					episode_buffer.append([s_obs, start_x, start_y, end_x, end_y, color, r, s1_obs, episode_end, v[0,0]])
+					episode_buffer.append([s_obs, i_x, i_y, ii_x, ii_y, iii_x, iii_y, color, r, s1_obs, episode_end, v[0,0]])
 					episode_values.append(v[0,0])
 
 					episode_reward += r
