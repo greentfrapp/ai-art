@@ -6,6 +6,9 @@ import classes
 from keras.applications.resnet50 import ResNet50
 from keras.preprocessing import image
 
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF, renderPM
+
 
 def preprocess(sample_path):
 	img = image.load_img(sample_path, target_size=(224, 224))
@@ -23,10 +26,25 @@ class SvgEnv():
 		self.max_steps = 20
 		self.episode_end = False
 		self.filename = '{}.png'.format(self.name)
+		# self.start = '<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="200px" height="200px" viewBox="0 0 200 200">'
+		# self.end = '</svg>'
+		# self.contents = ''
 		self.canvas = drawSvg.Drawing(200, 200)
 		self.canvas.append(drawSvg.Rectangle(0,0,200,200, fill='#ffffff'))
 
 	def draw(self, action):
+		# self.contents += '<path d="'
+		# self.contents += 'M {} {}'.format(action['vertices'][0][0], action['vertices'][0][1])
+		# for i, val in enumerate(action['vertices'][1:]):
+		# 	self.contents += ' L {} {}'.format(action['vertices'][i][0], action['vertices'][i][1])
+		# self.contents += ' Z'
+		# with open(self.filename, 'w') as file:
+		# 	file.write(self.start)
+		# 	file.write(self.contents)
+		# 	file.write(self.end)
+		# drawing = svg2rlg(self.filename)
+		# renderPM.drawToFile(drawing, self.filename.split('.')[0] + '.png')
+
 		p = drawSvg.Path(fill=action['color'])
 		p.M(action['vertices'][0][0], action['vertices'][0][1])
 		for i, val in enumerate(action['vertices'][1:]):
@@ -51,6 +69,20 @@ class SvgEnv():
 		self.episode_end = False
 		self.canvas = drawSvg.Drawing(200, 200)
 		self.canvas.append(drawSvg.Rectangle(0,0,200,200, fill='#ffffff'))
+		self.canvas.savePng(self.filename)
+		# self.contents = ''
+		# with open(self.filename, 'w') as file:
+		# 	file.write(self.start)
+		# 	file.write(self.end)
+		# drawing = svg2rlg(self.filename)
+		# renderPM.drawToFile(drawing, self.filename.split('.')[0] + '.png')
+		img = np.array(Image.open(self.filename))
+		sample = preprocess(self.filename)
+		predictions = self.classifier.predict(sample)
+		reward = predictions[0, 150]
+		# print(np.expand_dims(img, axis=0).shape)
+		# quit()
+		return np.expand_dims(img, axis=0), np.log(reward)/100, self.episode_end
 
 def main():
 	env = SvgEnv('env')

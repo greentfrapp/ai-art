@@ -137,17 +137,17 @@ class AC_Network():
 			# Only the worker network need ops for loss functions and gradient updating.
 			if scope != 'global':
 				self.actions_i_x = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_i_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
+				self.actions_onehot_i_x = tf.one_hot(self.actions_i_x, 50, dtype=tf.float32)
 				self.actions_i_y = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_i_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
+				self.actions_onehot_i_y = tf.one_hot(self.actions_i_y, 50, dtype=tf.float32)
 				self.actions_ii_x = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_ii_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
+				self.actions_onehot_ii_x = tf.one_hot(self.actions_ii_x, 50, dtype=tf.float32)
 				self.actions_ii_y = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_ii_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
+				self.actions_onehot_ii_y = tf.one_hot(self.actions_ii_y, 50, dtype=tf.float32)
 				self.actions_iii_x = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_iii_x = tf.one_hot(self.actions_start_x, 50, dtype=tf.float32)
+				self.actions_onehot_iii_x = tf.one_hot(self.actions_iii_x, 50, dtype=tf.float32)
 				self.actions_iii_y = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_iii_y = tf.one_hot(self.actions_start_y, 50, dtype=tf.float32)
+				self.actions_onehot_iii_y = tf.one_hot(self.actions_iii_y, 50, dtype=tf.float32)
 				self.actions_color = tf.placeholder(shape=[None], dtype=tf.int32)
 				self.actions_onehot_color = tf.one_hot(self.actions_color, 4, dtype=tf.float32)
 
@@ -242,7 +242,7 @@ class Worker():
 		# Update the global network using gradients from loss
 		# Generate network statistics to periodically save
 		feed_dict = {self.local_AC.target_v:discounted_rewards,
-			self.local_AC.inputs:np.stack(obs).reshape(-1,100,100,3),
+			self.local_AC.inputs:np.stack(obs).reshape(-1,200,200,3),
 			self.local_AC.actions_i_x:actions_i_x,
 			self.local_AC.actions_i_y:actions_i_y,
 			self.local_AC.actions_ii_x:actions_ii_x,
@@ -407,7 +407,7 @@ def main():
 		master_network = AC_Network('global',None) # Generate global network
 		#num_workers = multiprocessing.cpu_count() # Set workers to number of available CPU threads
 		num_workers = psutil.cpu_count() # Set workers to number of available CPU threads
-		num_workers = 4
+		num_workers = 1
 		global _max_score, _running_avg_score, _steps, _episodes, _resnet
 		_max_score = 0
 		_running_avg_score = 0
