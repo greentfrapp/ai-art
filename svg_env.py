@@ -42,10 +42,7 @@ class SvgEnv():
 			sample = preprocess(self.filename)
 			predictions = self.classifier.predict(sample)
 			reward = predictions[0, 150]
-			print(classes.class_ids[np.argmax(predictions)])
-			print(np.max(predictions))
-			print(reward)
-			return img, reward
+			return np.expand_dims(img, axis=0), np.log(reward)/100, self.episode_end
 		else:
 			return None
 

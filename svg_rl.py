@@ -56,7 +56,7 @@ class AC_Network():
 		with tf.variable_scope(scope):
 
 			self.inputs = tf.placeholder(
-				shape=[None, 100, 100, 3],
+				shape=[None, 200, 200, 3],
 				dtype=tf.float32,
 				name='inputs',
 			)
@@ -316,9 +316,9 @@ class Worker():
 					a = {
 						'color': rgb,
 						'vertices': [
-							[i_x, i_y],
-							[ii_x, ii_y],
-							[iii_x, iii_y],
+							[i_x * 4, i_y * 4],
+							[ii_x * 4, ii_y * 4],
+							[iii_x * 4, iii_y * 4],
 						],
 					}
 					
