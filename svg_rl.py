@@ -11,7 +11,7 @@ from absl import flags
 from absl.flags import FLAGS
 from keras.applications.resnet50 import ResNet50
 
-from paint_env import SvgEnv
+from svg_env import SvgEnv
 
 """
 Use the following command to launch Tensorboard:
