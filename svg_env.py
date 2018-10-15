@@ -90,7 +90,7 @@ class SvgEnv():
 		sample = preprocess(self.filename.split('.')[0] + '.png')
 		predictions = self.classifier.predict(sample)
 		reward = predictions[0, 376]
-		return np.expand_dims(img, axis=0), np.log(reward)/100, self.episode_end
+		return np.expand_dims(img, axis=0), np.exp(reward) - 1, self.episode_end
 
 def main():
 	env = SvgEnv('env')
