@@ -69,7 +69,7 @@ class SvgEnv():
 				# quit()
 			# if self.steps == 5:
 			# 	quit()
-			return np.expand_dims(img, axis=0), np.log(reward)/100, self.episode_end
+			return np.expand_dims(img, axis=0), np.exp(reward) - 1, self.episode_end
 		else:
 			return None
 
