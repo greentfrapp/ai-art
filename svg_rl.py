@@ -124,7 +124,7 @@ class AC_Network():
 
 			self.policy_color = tf.layers.dense(
 				inputs=self.latent_vector,
-				units=4,
+				units=5,
 				activation=tf.nn.softmax,
 				kernel_initializer=normalized_columns_initializer(0.01),
 			)
@@ -149,7 +149,7 @@ class AC_Network():
 				self.actions_iii_y = tf.placeholder(shape=[None], dtype=tf.int32)
 				self.actions_onehot_iii_y = tf.one_hot(self.actions_iii_y, 50, dtype=tf.float32)
 				self.actions_color = tf.placeholder(shape=[None], dtype=tf.int32)
-				self.actions_onehot_color = tf.one_hot(self.actions_color, 4, dtype=tf.float32)
+				self.actions_onehot_color = tf.one_hot(self.actions_color, 5, dtype=tf.float32)
 
 				self.target_v = tf.placeholder(shape=[None],dtype=tf.float32)
 				self.advantages = tf.placeholder(shape=[None],dtype=tf.float32)
@@ -305,13 +305,15 @@ class Worker():
 					color = sample_dist(color_dist)
 
 					if color == 0:
-						rgb = '#D9D4D1'
-					elif color == 1:
 						rgb = '#000000'
+					elif color == 1:
+						rgb = '#FF0000'
 					elif color == 2:
-						rgb = '#7E7265'
+						rgb = '#00FF00'
 					elif color == 3:
-						rgb = '#7C7A99'
+						rgb = '#0000FF'
+					elif color == 4:
+						rgb = '#FFFF00'
 
 					a = {
 						'color': rgb,
@@ -407,7 +409,7 @@ def main():
 		master_network = AC_Network('global',None) # Generate global network
 		#num_workers = multiprocessing.cpu_count() # Set workers to number of available CPU threads
 		num_workers = psutil.cpu_count() # Set workers to number of available CPU threads
-		num_workers = 1
+		num_workers = 8
 		global _max_score, _running_avg_score, _steps, _episodes, _resnet
 		_max_score = 0
 		_running_avg_score = 0
