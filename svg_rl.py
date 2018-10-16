@@ -349,6 +349,11 @@ class Worker():
 						episode_buffer = []
 						sess.run(self.update_local_ops)
 					if episode_end:
+						if self.env.chosen_class == -1:
+							global _chosen_class
+							if _chosen_class == -1:
+								_chosen_class = np.argmax(self.env.predictions)
+							self.env.chosen_class = _chosen_class
 						break
 
 				self.episode_rewards.append(episode_reward)
@@ -363,7 +368,7 @@ class Worker():
 				_episodes[self.number] = episode_count
 				_steps[self.number] = total_steps
 
-				print("{} Step #{} Episode #{} Reward: {}".format(self.name, total_steps, episode_count, episode_reward))
+				print("{}-{} Step #{} Episode #{} Reward: {}".format(self.name, self.env.chosen_class, total_steps, episode_count, episode_reward))
 				print("Total Steps: {}\tTotal Episodes: {}\tMax Score: {}\tAvg Score: {}".format(np.sum(_steps), np.sum(_episodes), _max_score, _running_avg_score))
 
 				# Update the network using the episode buffer at the end of the episode
@@ -410,7 +415,8 @@ def main():
 		#num_workers = multiprocessing.cpu_count() # Set workers to number of available CPU threads
 		num_workers = psutil.cpu_count() # Set workers to number of available CPU threads
 		num_workers = 8
-		global _max_score, _running_avg_score, _steps, _episodes, _resnet
+		global _chosen_class, _max_score, _running_avg_score, _steps, _episodes, _resnet
+		_chosen_class = -1
 		_max_score = 0
 		_running_avg_score = 0
 		_steps = np.zeros(num_workers)

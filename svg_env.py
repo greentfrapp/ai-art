@@ -23,17 +23,18 @@ class SvgEnv():
 		self.name = name
 		self.classifier = classifier or ResNet50(weights='imagenet')
 		self.steps = 0
-		self.max_steps = 20
+		self.max_steps = 4
 		self.episode_end = False
 		self.filename = '{}.svg'.format(self.name)
 		self.start = '<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="200px" height="200px" viewBox="0 0 200 200">'
 		self.end = '</svg>'
 		self.contents = ''
+		self.chosen_class = 949
 		# self.canvas = drawSvg.Drawing(200, 200)
 		# self.canvas.append(drawSvg.Rectangle(0,0,200,200, fill='#ffffff'))
 
 	def draw(self, action):
-		self.contents += '<path fill="{}" d="'.format(action['color'])
+		self.contents += '<path stroke="black" stroke-width="5" fill="{}" d="'.format(action['color'])
 		self.contents += 'M {} {}'.format(action['vertices'][0][0], action['vertices'][0][1])
 		for i, val in enumerate(action['vertices'][1:]):
 			self.contents += ' L {} {}'.format(val[0], val[1])
@@ -58,17 +59,22 @@ class SvgEnv():
 		if not self.episode_end:
 			img = self.draw(action)
 			sample = preprocess(self.filename.split('.')[0] + '.png')
-			predictions = self.classifier.predict(sample)
-			reward = predictions[0, 376]
+			self.predictions = self.classifier.predict(sample)
+			reward = self.predictions[0, self.chosen_class]
 			self.steps += 1
 			if self.steps > self.max_steps:
 				self.episode_end = True
+				# if self.chosen_class == -1:
+					# self.chosen_class = np.argmax(predictions)
 				# print(np.argmax(predictions))
 				# print(predictions[0, np.argmax(predictions)])
-				# print(predictions[0, 309])
+				print(self.predictions[0, self.chosen_class])
 				# quit()
 			# if self.steps == 5:
 			# 	quit()
+			# print(reward)
+			# print(np.exp(reward)-1)
+			# print(self.chosen_class)
 			return np.expand_dims(img, axis=0), np.exp(reward) - 1, self.episode_end
 		else:
 			return None
@@ -89,7 +95,7 @@ class SvgEnv():
 		img = np.array(Image.open(self.filename.split('.')[0] + '.png').convert('RGB'), dtype=np.float32) / 255
 		sample = preprocess(self.filename.split('.')[0] + '.png')
 		predictions = self.classifier.predict(sample)
-		reward = predictions[0, 376]
+		reward = predictions[0, self.chosen_class]
 		return np.expand_dims(img, axis=0), np.exp(reward) - 1, self.episode_end
 
 def main():
