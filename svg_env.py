@@ -29,7 +29,7 @@ class SvgEnv():
 		self.start = '<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="200px" height="200px" viewBox="0 0 200 200">'
 		self.end = '</svg>'
 		self.contents = ''
-		self.chosen_class = 949
+		self.chosen_class = -1
 		# self.canvas = drawSvg.Drawing(200, 200)
 		# self.canvas.append(drawSvg.Rectangle(0,0,200,200, fill='#ffffff'))
 
