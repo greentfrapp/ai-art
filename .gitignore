@@ -2,6 +2,10 @@
 model/
 train_*/
 
+*.DS_Store
+
+paint-svg/paint_svg/test
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
