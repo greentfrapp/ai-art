@@ -17,13 +17,13 @@ class PPOBuffer:
 
     def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
         self.obs_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
-        self.act_buf_color = np.zeros(core.combined_shape(size, 5), dtype=np.float32)
-        self.act_buf_x1 = np.zeros(core.combined_shape(size, 100), dtype=np.float32)
-        self.act_buf_y1 = np.zeros(core.combined_shape(size, 100), dtype=np.float32)
-        self.act_buf_x2 = np.zeros(core.combined_shape(size, 100), dtype=np.float32)
-        self.act_buf_y2 = np.zeros(core.combined_shape(size, 100), dtype=np.float32)
-        self.act_buf_x3 = np.zeros(core.combined_shape(size, 100), dtype=np.float32)
-        self.act_buf_y3 = np.zeros(core.combined_shape(size, 100), dtype=np.float32)
+        self.act_buf_color = np.zeros(size, dtype=np.float32)
+        self.act_buf_x1 = np.zeros(size, dtype=np.float32)
+        self.act_buf_y1 = np.zeros(size, dtype=np.float32)
+        self.act_buf_x2 = np.zeros(size, dtype=np.float32)
+        self.act_buf_y2 = np.zeros(size, dtype=np.float32)
+        self.act_buf_x3 = np.zeros(size, dtype=np.float32)
+        self.act_buf_y3 = np.zeros(size, dtype=np.float32)
         self.adv_buf = np.zeros(size, dtype=np.float32)
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.ret_buf = np.zeros(size, dtype=np.float32)
@@ -208,6 +208,16 @@ def ppo(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     x_ph, a_ph = core.placeholders_from_spaces(env.observation_space, env.action_space)
     adv_ph, ret_ph, logp_old_ph = core.placeholders(None, None, None)
 
+    a_ph = [
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+        tf.placeholder(shape=(None,), dtype=tf.int32),
+    ]
+
     # Main outputs from computation graph
     pi, logp, logp_pi, v = actor_critic(x_ph, a_ph, **ac_kwargs)
 
@@ -247,8 +257,8 @@ def ppo(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
     # Info (useful to watch during learning)
     approx_kl = tf.reduce_mean(logp_old_ph - logp)      # a sample estimate for KL-divergence, easy to compute
-    approx_ent = tf.reduce_mean(-logp)                  # a sample estimate for entropy, also easy to compute
-    clipped = tf.logical_or(ratio > (1+clip_ratio), ratio < (1-clip_ratio))
+    approx_ent = -tf.reduce_mean(logp)                  # a sample estimate for entropy, also easy to compute
+    clipped = tf.logical_or(ratio_color > (1+clip_ratio), ratio_color < (1-clip_ratio))
     clipfrac = tf.reduce_mean(tf.cast(clipped, tf.float32))
 
     # Optimizers
@@ -262,7 +272,7 @@ def ppo(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     sess.run(sync_all_params())
 
     # Setup model saving
-    logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v})
+    # logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v})
 
     def update():
         inputs = {k:v for k,v in zip(all_phs, buf.get())}
@@ -293,12 +303,11 @@ def ppo(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
             a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1)})
-
             # save and log
             buf.store(o, a, r, v_t, logp_t)
             logger.store(VVals=v_t)
 
-            o, r, d, _ = env.step(a[0])
+            o, r, d, _ = env.step(np.array([el[0] for el in a]))
             ep_ret += r
             ep_len += 1
 

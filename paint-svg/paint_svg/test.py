@@ -2,6 +2,7 @@ from spinup import ppo
 import tensorflow as tf
 import gym
 import paint_svg
+from paint_svg.algos.ppo.ppo import ppo
 
 env_fn = lambda : gym.make('PaintSvg-v0')
 

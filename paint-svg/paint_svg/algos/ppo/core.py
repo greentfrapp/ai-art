@@ -131,10 +131,11 @@ def mlp_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
                      output_activation=None, policy=None, action_space=None):
 
     # default policy builder depends on action space
-    if policy is None and isinstance(action_space, Box):
-        policy = mlp_gaussian_policy
-    elif policy is None and isinstance(action_space, Discrete):
-        policy = mlp_categorical_policy
+    policy = mlp_custom_policy
+    # if policy is None and isinstance(action_space, Box):
+    #     policy = mlp_gaussian_policy
+    # elif policy is None and isinstance(action_space, Discrete):
+    #     policy = mlp_categorical_policy
 
     with tf.variable_scope('pi'):
         pi, logp, logp_pi = policy(x, a, hidden_sizes, activation, output_activation, action_space)
