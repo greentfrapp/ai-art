@@ -29,7 +29,7 @@ def preprocess(sample_path):
 class PaintSvg(gym.Env):
 	metadata = {'render.modes': ['human']}
 
-	def __init__(self, classifier=None, max_steps=5, colors=5, canvas_size=(200, 200), chosen_class=None):
+	def __init__(self, classifier=None, max_steps=5, colors=5, canvas_size=(100, 100), chosen_class=None):
 		# Each action comprises a chosen color and three vertices
 		# To make things easier, implement as 7 continuous variables
 		# then we will round up the values
